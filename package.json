@@ -11,6 +11,7 @@
     "dev": "concurrently -n \"SERVER,CLIENT\" -c \"blue.bold,green.bold\" \"npm run dev --workspace=server\" \"npm run dev --workspace=client\"",
     "dev:server": "npm run dev --workspace=server",
     "dev:client": "npm run dev --workspace=client",
+    "debug:server": "node --inspect-brk=9229 ./node_modules/tsx/dist/cli.mjs server/src/server.ts",
     "build": "npm run build --workspace=server && npm run build --workspace=client",
     "typecheck": "npm run typecheck --workspace=server && npm run typecheck --workspace=client",
     "start": "npm run start --workspace=server"

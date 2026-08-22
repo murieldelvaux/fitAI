@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { useDailyStore } from '../../store/useDailyStore';
-import { formatDate } from '../../lib/utils';
+import { formatDate, getLocalDateString } from '../../lib/utils';
 import { Calendar, Flame, Sparkles, CheckCircle2 } from 'lucide-react';
 
 export function Header() {
@@ -14,7 +14,8 @@ export function Header() {
     return 'Boa noite';
   };
 
-  const isToday = selectedDate === new Date().toISOString().split('T')[0];
+  const today = getLocalDateString();
+  const isToday = selectedDate === today;
 
   return (
     <header className="h-20 border-b border-slate-800/80 bg-[#0F172A]/80 backdrop-blur-md sticky top-0 z-30 px-4 sm:px-8 flex items-center justify-between">
@@ -43,7 +44,7 @@ export function Header() {
           />
           {!isToday && (
             <button
-              onClick={() => setSelectedDate(new Date().toISOString().split('T')[0])}
+              onClick={() => setSelectedDate(today)}
               className="ml-2 text-xs font-medium text-green-400 hover:text-green-300 underline"
             >
               Hoje
