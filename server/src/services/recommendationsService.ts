@@ -4,6 +4,7 @@ import { DailyNutritionSummary, MacroGoals } from '../types/nutrition';
 import { Meal } from '../types/meal';
 import { DEFAULT_GOALS, getDailyNutrition } from './nutritionService';
 import { FoodNutrition } from '../types/food';
+import { listFoods } from './foodsService';
 
 // create weigths for the model
 const WEIGHTS = {  
@@ -14,22 +15,53 @@ const WEIGHTS = {
   mealType: 0.1,
 }
 
-// step 0: build the candidate list from real food data
-// mockFoods is a dictionary with duplicate values (pt/en keys pointing to the same food),
-// so we deduplicate by name before using it as the candidate pool
-function getCandidateFoods(): FoodNutrition[] {
-  const seen = new Set<string>();
-  const foods: FoodNutrition[] = [];
+function inferCategory(
+  food: FoodNutrition
+): MealRecommendation['category'] {
+  if (food.protein >= 20) return 'high_protein';
+  if (food.carbs <= 40) return 'low_carb';
+  if (food.calories <= 300) return 'quick_snack';
 
-  Object.values(mockFoods).forEach(food => {
-    if (!seen.has(food.name)) {
-      seen.add(food.name);
-      foods.push(food);
-    }
-  });
-
-  return foods;
+  return 'balanced';
 }
+
+// step 0: build the candidate list from real food data
+async function getCandidateFoods(): Promise<MealRecommendation[]> {
+  const foods = await listFoods();
+
+  // Deduplica por nome (mesmo comportamento que antes com mockFoods)
+  const seen = new Set<string>();
+  const result: MealRecommendation[] = [];
+
+  for (const food of foods) {
+    if (!food.name || seen.has(food.name)) continue;
+    seen.add(food.name);
+
+    result.push({
+      id: food.name.toLowerCase().replace(/\s+/g, '-'),
+      name: food.name,
+      description: `${food.calories} kcal · ${food.protein}g prot · ${food.carbs}g carbs · ${food.fat}g fat per ${food.servingSize}${food.servingUnit}`,
+      calories: food.calories,
+      protein: food.protein,
+      carbs: food.carbs,
+      fat: food.fat,
+      category: inferCategory(food),
+      whyItFits: 'Ajuda a complementar seus objetivos de macronutrientes.',
+      prepTimeMinutes: 5,
+      ingredients: [
+        {
+          name: food.name,
+          quantity: food.servingSize,
+          unit: food.servingUnit,
+          nutrition: food,
+        },
+      ],
+    });
+  }
+
+  return result;
+}
+
 
 let _globalCtx: ReturnType<typeof makeContext> | null = null;
 let _model: tf.Sequential | null = null;
@@ -285,14 +317,16 @@ export async function trainModel(
   const dailyNutrition = await getDailyNutrition(dateStr, customGoals);
 
   // step B: create context based on the recommendation catalog
-  const context = makeContext(dailyNutrition, recommendationCatalog);
+    const candidates = await getCandidateFoods();
 
-  _globalCtx = context; // store context globally for later use
+  const context = makeContext(dailyNutrition, candidates);
+  _globalCtx = context;
+
 
   // step C: create training data
   const trainingData = createTrainingData(
     dailyNutrition,
-    recommendationCatalog,
+    candidates,
     context
   );
 
