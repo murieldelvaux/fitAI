@@ -77,3 +77,75 @@ export async function searchFood(query: string): Promise<FoodNutrition> {
     return mockFoods[query.toLowerCase()] ?? mockFoods['default'];
   }
 }
+
+export async function listFoods(): Promise<FoodNutrition[]> {
+   try{
+    const response = await axios.get<OpenFoodFactsResponse>(OPEN_FOOD_FACTS_URL, {
+      timeout: 8000,
+    });
+
+    const products = response.data.products;
+
+    if (!products || products.length === 0) {
+      console.warn(`[OpenFoodFacts] Empty products array, using mock fallback`);
+      return Object.values(mockFoods);
+    }
+
+    const validProduct = products.find(
+      (product) =>
+        product.product_name &&
+        product.nutriments &&
+        product.nutriments['energy-kcal_100g'] !== undefined
+    );
+
+    if (!validProduct) {
+      // Log todos os produtos recebidos para debugar
+      console.warn(
+        `[OpenFoodFacts] No valid product. Products received:`,
+        products.map((p) => ({
+          name: p.product_name,
+          hasNutriments: !!p.nutriments,
+          kcal: p.nutriments?.['energy-kcal_100g'],
+        }))
+      );
+      // Fallback em vez de throw — o app não quebra
+      return Object.values(mockFoods);
+    }
+
+    const { product_name, nutriments } = validProduct;
+
+    console.log(`[OpenFoodFacts] Found valid product: "${product_name}"`, nutriments);
+
+    return products.map((product) => ({
+      name: product.product_name,
+      calories: Math.round(
+        product.nutriments['energy-kcal_100g'] ?? 0
+      ),
+      protein: Math.round(
+        product.nutriments['proteins_100g'] ?? 0
+      ),
+      carbs: Math.round(
+        product.nutriments['carbohydrates_100g'] ?? 0
+      ),
+      fat: Math.round(
+        product.nutriments['fat_100g'] ?? 0
+      ),
+      servingSize: 100,
+      servingUnit: 'g',
+    }));
+  } catch (error) {
+    if (axios.isAxiosError(error)) {
+      console.error(`[OpenFoodFacts] Axios error:`, {
+        message: error.message,
+        code: error.code,           // ex: ECONNABORTED = timeout
+        status: error.response?.status,
+        data: error.response?.data,
+      });
+    } else {
+      console.error(`[OpenFoodFacts] Unknown error:`, error);
+    }
+
+    // Fallback silencioso em vez de quebrar o endpoint
+    return {...Object.values(mockFoods)}
+  }
+}
