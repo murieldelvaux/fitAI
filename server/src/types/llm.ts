@@ -7,7 +7,7 @@ export interface ParsedFoodItem {
 export interface ParsedMealResponse {
   parsedItems: ParsedFoodItem[];
   rawInput: string;
-  detectedMealType?: 'breakfast' | 'lunch' | 'dinner' | 'snack';
+  detectedMealType?: 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'supper';
 }
 
 export interface ParseMealRequest {
