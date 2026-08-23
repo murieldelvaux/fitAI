@@ -2,14 +2,12 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { parseMealWithLLM } from '../services/llmService';
 import { searchFood } from '../services/foodService';
 import { createMeal } from '../services/mealService';
-import { useDailyLog } from './useDailyLog';
 import { ParsedMealResponse } from '../types/llm';
-import { CreateMealDto } from '../types/meal';
+import { CreateMealDto, MealType } from '../types/meal';
 import { toast } from 'sonner';
 
 export function useMealParse() {
   const queryClient = useQueryClient();
-  const { createMealAsync } = useDailyLog();
 
   // 1. Mutation to just parse natural language into structured items
   const parseOnlyMutation = useMutation({
@@ -23,7 +21,10 @@ export function useMealParse() {
 
   // 2. Full pipeline mutation: Parse natural language -> Enrich with nutritional data -> Save meal
   const parseAndLogMealMutation = useMutation({
-    mutationFn: async (naturalLanguageInput: string) => {
+    mutationFn: async (payload: string | { input: string; mealType?: MealType }) => {
+      const naturalLanguageInput = typeof payload === 'string' ? payload : payload.input;
+      const explicitMealType = typeof payload === 'string' ? undefined : payload.mealType;
+
       // Step A: Call LLM parsing endpoint
       const parsedData: ParsedMealResponse = await parseMealWithLLM(naturalLanguageInput);
 
@@ -59,7 +60,7 @@ export function useMealParse() {
 
       const dto: CreateMealDto = {
         name: mealName,
-        mealType: parsedData.detectedMealType || 'lunch',
+        mealType: explicitMealType || parsedData.detectedMealType || 'lunch',
         rawDescription: naturalLanguageInput,
         items: enrichedItems,
       };

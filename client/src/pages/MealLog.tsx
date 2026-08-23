@@ -56,8 +56,9 @@ export function MealLog() {
             <TabsTrigger value="all">Todas ({meals.length})</TabsTrigger>
             <TabsTrigger value="breakfast">Café</TabsTrigger>
             <TabsTrigger value="lunch">Almoço</TabsTrigger>
+            <TabsTrigger value="snack">Lanche da Tarde</TabsTrigger>
             <TabsTrigger value="dinner">Jantar</TabsTrigger>
-            <TabsTrigger value="snack">Lanches</TabsTrigger>
+            <TabsTrigger value="supper">Ceia</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
