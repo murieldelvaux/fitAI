@@ -4,6 +4,7 @@ export interface FoodNutrition {
   protein: number;
   carbs: number;
   fat: number;
+  fiber?: number;
   servingSize: number;
   servingUnit: string;
 }
