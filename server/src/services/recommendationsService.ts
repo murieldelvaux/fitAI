@@ -8,11 +8,30 @@ import { listFoods } from './foodsService';
 
 // create weigths for the model
 const WEIGHTS = {  
-  totalCalories: 0.4,
+  totalCalories: 0.5,
   totalProtein: 0.3,
   totalCarbs: 0.2,
   totalFat: 0.1,
   mealType: 0.1,
+}
+
+function isBalanced(meal: FoodNutrition): boolean {
+  const totalCalories = meal.calories;
+  if (totalCalories === 0) return false;
+
+  const carbsCalories    = meal.carbs * 4;   // 1g carb = 4 kcal
+  const proteinCalories  = meal.protein * 4; // 1g proteína = 4 kcal
+  const fatCalories      = meal.fat * 9;     // 1g gordura = 9 kcal
+
+  const carbsPct   = carbsCalories / totalCalories;
+  const proteinPct = proteinCalories / totalCalories;
+  const fatPct     = fatCalories / totalCalories;
+
+  return (
+    carbsPct   >= 0.45 && carbsPct   <= 0.65 &&
+    proteinPct >= 0.10 && proteinPct <= 0.35 &&
+    fatPct     >= 0.20 && fatPct     <= 0.35
+  );
 }
 
 function inferCategory(
@@ -21,6 +40,8 @@ function inferCategory(
   if (food.protein >= 20) return 'high_protein';
   if (food.carbs <= 40) return 'low_carb';
   if (food.calories <= 300) return 'quick_snack';
+  if(isBalanced(food)) return 'balanced';
+  if (food.protein >= 15 && food.calories <= 400) return 'post_workout';
 
   return 'balanced';
 }
@@ -29,7 +50,11 @@ function inferCategory(
 async function getCandidateFoods(): Promise<MealRecommendation[]> {
   const foods = await listFoods();
 
-  // Deduplica por nome (mesmo comportamento que antes com mockFoods)
+  if (!Array.isArray(foods) || foods.length === 0) {
+    console.warn('[Recommendations] listFoods returned empty or invalid data');
+    return [];
+  }
+
   const seen = new Set<string>();
   const result: MealRecommendation[] = [];
 
@@ -202,7 +227,7 @@ function encodeMeal(meal: Meal, context: ReturnType<typeof makeContext>) {
   return tf.concat1d([calories, protein, carbs, fat]);
 }
 
-// step 3: create a function to adequar data to train
+// step 3: create a function to prepare data for training
 // IMPORTANT:
 // the training example must be daily state + candidate meal
 function createTrainingData(
@@ -215,27 +240,38 @@ function createTrainingData(
 
   const dailyVector = Array.from(encodeDailyNutrition(dailyNutrition).dataSync());
 
-  candidates.forEach(candidate => {
+  candidates.forEach((candidate) => {
     const candidateVector = Array.from(
       encodeRecommendationMeal(candidate, context).dataSync()
     );
 
-    // simple heuristic label for the first version:
-    // label 1 when the meal helps the remaining deficit without greatly exceeding it
-    const helpsCalories = candidate.calories <= dailyNutrition.calories.remaining + 150;
-    const helpsProtein = candidate.protein <= dailyNutrition.protein.remaining + 20;
-    const helpsCarbs = candidate.carbs <= dailyNutrition.carbs.remaining + 20;
-    const helpsFat = candidate.fat <= dailyNutrition.fat.remaining + 10;
+    // FIX: stricter heuristic to create real contrast in the labels
+    // before: almost everything was label=1, causing acc=1.00 from epoch 1
+    const calRatio = candidate.calories / (dailyNutrition.calories.remaining || 1);
+    const protRatio = candidate.protein / (dailyNutrition.protein.remaining || 1);
 
-    // protein gets priority because this app has a strong fitness / macro focus
-    const label =
-      (helpsProtein && helpsCalories) || (helpsProtein && helpsCarbs && helpsFat)
-        ? 1
-        : 0;
+    // Label 1 only if the meal covers between 20% and 80% of the remaining deficit
+    // And if protein is within a reasonable range
+    const helpsCalories = calRatio >= 0.1 && calRatio <= 0.8;
+    const helpsProtein = protRatio >= 0.1 && protRatio <= 1.0;
+    const doesntExceedFat =
+      candidate.fat <= dailyNutrition.fat.remaining + 5;
+
+    const label = helpsCalories && helpsProtein && doesntExceedFat ? 1 : 0;
 
     input.push([...dailyVector, ...candidateVector]);
     labels.push(label);
   });
+
+  // Check that there is at least one sample from each class; otherwise the model learns nothing
+  const hasPositive = labels.some((l) => l === 1);
+  const hasNegative = labels.some((l) => l === 0);
+  if (!hasPositive || !hasNegative) {
+    console.warn(
+      '[Recommendations] Training data has only one class — labels:',
+      labels
+    );
+  }
 
   return {
     xs: tf.tensor2d(input),
@@ -244,14 +280,11 @@ function createTrainingData(
   };
 }
 
-// step 4: configure the neural network and train
 async function configureNeuralNetworkAndTrain(
   trainData: ReturnType<typeof createTrainingData>
 ) {
-  // normalized data and we will add layers of neural network and train model
   const model = tf.sequential();
 
-  // first hidden layer learns broader patterns
   model.add(
     tf.layers.dense({
       inputShape: [trainData.inputDimensions],
@@ -259,22 +292,8 @@ async function configureNeuralNetworkAndTrain(
       activation: 'relu',
     })
   );
-
-  // second hidden layer compresses the information
-  model.add(
-    tf.layers.dense({
-      units: 16,
-      activation: 'relu',
-    })
-  );
-
-  // compress final result in interval betweeen 0 and 1
-  model.add(
-    tf.layers.dense({
-      units: 1,
-      activation: 'sigmoid',
-    })
-  );
+  model.add(tf.layers.dense({ units: 16, activation: 'relu' }));
+  model.add(tf.layers.dense({ units: 1, activation: 'sigmoid' }));
 
   model.compile({
     optimizer: tf.train.adam(0.001),
@@ -299,11 +318,66 @@ async function configureNeuralNetworkAndTrain(
   return model;
 }
 
+// step E: use the trained model to score each candidate and build the response
+function scoreAndRankCandidates(
+  model: tf.Sequential,
+  candidates: MealRecommendation[],
+  context: ReturnType<typeof makeContext>,
+  dailyNutrition: DailyNutritionSummary,
+  topN = 5
+): MealRecommendation[] {
+  const dailyVector = Array.from(encodeDailyNutrition(dailyNutrition).dataSync());
+
+  const scored = candidates.map((candidate) => {
+    const candidateVector = Array.from(
+      encodeRecommendationMeal(candidate, context).dataSync()
+    );
+
+    const inputTensor = tf.tensor2d([[...dailyVector, ...candidateVector]]);
+    const scoreTensor = model.predict(inputTensor) as tf.Tensor;
+    const score = scoreTensor.dataSync()[0];
+
+    // Dispose tensors immediately to prevent memory leaks
+    inputTensor.dispose();
+    scoreTensor.dispose();
+
+    // Build a dynamic whyItFits message based on what the meal complements
+    const whyItFits = buildWhyItFits(candidate, dailyNutrition);
+
+    return { candidate: { ...candidate, whyItFits }, score };
+  });
+
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, topN)
+    .map(({ candidate }) => candidate);
+}
+
+function buildWhyItFits(
+  candidate: MealRecommendation,
+  dailyNutrition: DailyNutritionSummary
+): string {
+  const reasons: string[] = [];
+
+  const protFill = (candidate.protein / dailyNutrition.protein.remaining) * 100;
+  const calFill = (candidate.calories / dailyNutrition.calories.remaining) * 100;
+
+  if (protFill >= 20 && protFill <= 80)
+    reasons.push(`cobre ~${Math.round(protFill)}% da proteína restante`);
+  if (calFill >= 15 && calFill <= 70)
+    reasons.push(`cobre ~${Math.round(calFill)}% das calorias restantes`);
+  if (candidate.fat <= dailyNutrition.fat.remaining)
+    reasons.push('dentro do limite de gordura do dia');
+
+  return reasons.length > 0
+    ? reasons.join(', ') + '.'
+    : 'Ajuda a complementar seus objetivos de macronutrientes.';
+}
+
 export async function getRecommendations(
   dateStr?: string,
   customGoals: MacroGoals = DEFAULT_GOALS
 ): Promise<RecommendationsResponse> {
-  debugger;
   return trainModel(dateStr, customGoals);
 }
 
@@ -311,33 +385,54 @@ export async function trainModel(
   dateStr?: string,
   customGoals: MacroGoals = DEFAULT_GOALS
 ): Promise<RecommendationsResponse> {
-  debugger;
-
-  // step A: get the current daily state
+  // step A: current daily nutrition state
   const dailyNutrition = await getDailyNutrition(dateStr, customGoals);
 
-  // step B: create context based on the recommendation catalog
-    const candidates = await getCandidateFoods();
+  // step B: candidates and context
+  const candidates = await getCandidateFoods();
+
+  if (candidates.length === 0) {
+    return {
+      recommendations: [],
+      macroDeficit: {
+        calories: dailyNutrition.calories.remaining,
+        protein: dailyNutrition.protein.remaining,
+        carbs: dailyNutrition.carbs.remaining,
+        fat: dailyNutrition.fat.remaining,
+      },
+    };
+  }
 
   const context = makeContext(dailyNutrition, candidates);
   _globalCtx = context;
 
-
-  // step C: create training data
-  const trainingData = createTrainingData(
-    dailyNutrition,
-    candidates,
-    context
-  );
+  // step C: training data
+  const trainingData = createTrainingData(dailyNutrition, candidates, context);
 
   // step D: train the model
   _model = await configureNeuralNetworkAndTrain(trainingData);
 
-  console.log('training model with context:', context);
-  console.log('tensor meal (debug only)', encodeMeal(dailyNutrition.meals[0], context).dataSync());
-  console.log('tensor daily nutrition', encodeDailyNutrition(dailyNutrition).dataSync());
+  // step E: infer scores and return the ranked top N
+  const recommendations = scoreAndRankCandidates(
+    _model,
+    candidates,
+    context,
+    dailyNutrition,
+    5
+  );
 
-  // step E: predict recommendation scores
+  console.log(
+    '[Recommendations] Top recommendations:',
+    recommendations.map((r) => `${r.name} (${r.whyItFits})`)
+  );
 
-  throw new Error('Recommendation pipeline not implemented yet');
+  return {
+    recommendations,
+    macroDeficit: {
+      calories: dailyNutrition.calories.remaining,
+      protein: dailyNutrition.protein.remaining,
+      carbs: dailyNutrition.carbs.remaining,
+      fat: dailyNutrition.fat.remaining,
+    },
+  };
 }
