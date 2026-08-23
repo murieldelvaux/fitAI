@@ -252,7 +252,8 @@ export async function createMeal(dto: CreateMealDto): Promise<Meal> {
     if (hour >= 5 && hour < 11) mealType = 'breakfast';
     else if (hour >= 11 && hour < 16) mealType = 'lunch';
     else if (hour >= 16 && hour < 19) mealType = 'snack';
-    else mealType = 'dinner';
+    else if (hour >= 19 && hour < 22) mealType = 'dinner';
+    else mealType = 'supper';
   }
 
   const newMeal: Meal = {

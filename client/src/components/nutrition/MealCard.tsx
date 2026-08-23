@@ -4,7 +4,7 @@ import { Card } from '../ui/Card';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { formatTime, formatCalories, formatGrams } from '../../lib/utils';
-import { Trash2, Utensils, Coffee, Sun, Moon, Apple } from 'lucide-react';
+import { Trash2, Utensils, Coffee, Sun, Moon, Apple, MoonStar } from 'lucide-react';
 
 interface MealCardProps {
   meal: Meal;
@@ -19,10 +19,12 @@ export function MealCard({ meal, onDelete, isDeleting }: MealCardProps) {
         return { label: 'Café da Manhã', icon: <Coffee className="w-3.5 h-3.5" />, color: 'border-amber-500/30 text-amber-300 bg-amber-500/10' };
       case 'lunch':
         return { label: 'Almoço', icon: <Sun className="w-3.5 h-3.5" />, color: 'border-blue-500/30 text-blue-300 bg-blue-500/10' };
+      case 'snack':
+        return { label: 'Lanche da Tarde', icon: <Apple className="w-3.5 h-3.5" />, color: 'border-green-500/30 text-green-300 bg-green-500/10' };
       case 'dinner':
         return { label: 'Jantar', icon: <Moon className="w-3.5 h-3.5" />, color: 'border-indigo-500/30 text-indigo-300 bg-indigo-500/10' };
-      case 'snack':
-        return { label: 'Lanche', icon: <Apple className="w-3.5 h-3.5" />, color: 'border-green-500/30 text-green-300 bg-green-500/10' };
+      case 'supper':
+        return { label: 'Ceia', icon: <MoonStar className="w-3.5 h-3.5" />, color: 'border-purple-500/30 text-purple-300 bg-purple-500/10' };
       default:
         return { label: 'Refeição', icon: <Utensils className="w-3.5 h-3.5" />, color: 'border-slate-600 text-slate-300 bg-slate-800' };
     }

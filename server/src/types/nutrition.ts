@@ -27,5 +27,6 @@ export interface DailyNutritionSummary {
     lunch: { calories: number; count: number };
     dinner: { calories: number; count: number };
     snack: { calories: number; count: number };
+    supper: { calories: number; count: number };
   };
 }

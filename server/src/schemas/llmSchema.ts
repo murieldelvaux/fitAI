@@ -13,7 +13,7 @@ export const parsedFoodItemSchema = z.object({
 export const parsedMealResponseSchema = z.object({
   parsedItems: z.array(parsedFoodItemSchema).min(1, 'At least one food item must be parsed'),
   rawInput: z.string(),
-  detectedMealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack']).optional(),
+  detectedMealType: z.enum(['breakfast', 'lunch', 'dinner', 'snack', 'supper']).optional(),
 });
 
 export type ParseMealRequestSchema = z.infer<typeof parseMealRequestSchema>;

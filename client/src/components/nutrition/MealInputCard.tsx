@@ -2,8 +2,9 @@ import * as React from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../ui/Card';
 import { Textarea } from '../ui/Textarea';
 import { Button } from '../ui/Button';
-import { Sparkles, Send, Lightbulb, Zap, Loader2 } from 'lucide-react';
+import { Sparkles, Send, Lightbulb, Zap, Loader2, Coffee, Sun, Apple, Moon, MoonStar, Utensils } from 'lucide-react';
 import { useMealParse } from '../../hooks/useMealParse';
+import { MealType } from '../../types/meal';
 
 const QUICK_EXAMPLES = [
   'Comi 200g de frango grelhado com batata doce e azeite',
@@ -12,8 +13,26 @@ const QUICK_EXAMPLES = [
   '180g de salmão grelhado com 150g de arroz integral e brócolis',
 ];
 
+const MEAL_TYPE_OPTIONS: { type: MealType; label: string; icon: React.ReactNode }[] = [
+  { type: 'breakfast', label: 'Café da Manhã', icon: <Coffee className="w-3.5 h-3.5" /> },
+  { type: 'lunch', label: 'Almoço', icon: <Sun className="w-3.5 h-3.5" /> },
+  { type: 'snack', label: 'Lanche da Tarde', icon: <Apple className="w-3.5 h-3.5" /> },
+  { type: 'dinner', label: 'Jantar', icon: <Moon className="w-3.5 h-3.5" /> },
+  { type: 'supper', label: 'Ceia', icon: <MoonStar className="w-3.5 h-3.5" /> },
+];
+
+function getDefaultMealType(): MealType {
+  const hour = new Date().getHours();
+  if (hour >= 5 && hour < 11) return 'breakfast';
+  if (hour >= 11 && hour < 16) return 'lunch';
+  if (hour >= 16 && hour < 19) return 'snack';
+  if (hour >= 19 && hour < 22) return 'dinner';
+  return 'supper';
+}
+
 export function MealInputCard() {
   const [input, setInput] = React.useState('');
+  const [selectedMealType, setSelectedMealType] = React.useState<MealType>(getDefaultMealType);
   const { parseAndLogAsync, isParsingAndLogging } = useMealParse();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -21,7 +40,7 @@ export function MealInputCard() {
     if (!input.trim() || isParsingAndLogging) return;
 
     try {
-      await parseAndLogAsync(input);
+      await parseAndLogAsync({ input, mealType: selectedMealType });
       setInput('');
     } catch {
       // Error handled inside hook with toast
@@ -57,7 +76,36 @@ export function MealInputCard() {
       </CardHeader>
 
       <CardContent>
-        <form onSubmit={handleSubmit} className="space-y-3">
+        <form onSubmit={handleSubmit} className="space-y-3.5">
+          {/* Meal Type Selection Row */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <Utensils className="w-3.5 h-3.5 text-green-400" />
+              Tipo de Refeição:
+            </label>
+            <div className="flex flex-wrap gap-1.5">
+              {MEAL_TYPE_OPTIONS.map((option) => {
+                const isSelected = selectedMealType === option.type;
+                return (
+                  <button
+                    key={option.type}
+                    type="button"
+                    onClick={() => setSelectedMealType(option.type)}
+                    disabled={isParsingAndLogging}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all duration-150 ${
+                      isSelected
+                        ? 'bg-green-500/20 text-green-300 border-green-500/50 shadow-sm shadow-green-500/10 ring-1 ring-green-500/30'
+                        : 'bg-slate-900/80 text-slate-400 border-slate-700/80 hover:text-slate-200 hover:border-slate-600 hover:bg-slate-800/60'
+                    }`}
+                  >
+                    {option.icon}
+                    <span>{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
           <div className="relative">
             <Textarea
               value={input}
@@ -119,3 +167,4 @@ export function MealInputCard() {
     </Card>
   );
 }
+

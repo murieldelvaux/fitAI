@@ -78,6 +78,7 @@ export function RecommendationList({
         <TabsList className="flex flex-wrap h-auto gap-1">
           <TabsTrigger value="all">Todas ({recommendations.length})</TabsTrigger>
           <TabsTrigger value="high_protein">Alto Teor Proteico</TabsTrigger>
+          <TabsTrigger value="low_carb">Low Carb</TabsTrigger>
           <TabsTrigger value="balanced">Balanceadas</TabsTrigger>
           <TabsTrigger value="quick_snack">Lanches Rápidos</TabsTrigger>
           <TabsTrigger value="post_workout">Pós-Treino</TabsTrigger>

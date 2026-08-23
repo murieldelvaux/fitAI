@@ -25,6 +25,7 @@ export async function getDailyNutrition(
     lunch: { calories: 0, count: 0 },
     dinner: { calories: 0, count: 0 },
     snack: { calories: 0, count: 0 },
+    supper: { calories: 0, count: 0 },
   };
 
   for (const meal of meals) {
