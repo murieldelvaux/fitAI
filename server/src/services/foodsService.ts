@@ -12,10 +12,14 @@ export async function searchFood(query: string): Promise<FoodNutrition> {
         search_terms: query,
         search_simple: 1,
         action: 'process',
+        countries_tags: 'en:brazil',
         json: 1,
         page_size: 1
       },
       timeout: 8000,
+      headers: {
+        'User-Agent': 'FitAI/1.0 muridelvaux@gmail.com',
+      },
     });
 
     console.log(`[OpenFoodFacts] Total products found for "${query}":`, response.data.products?.length ?? 0);
@@ -79,44 +83,51 @@ export async function searchFood(query: string): Promise<FoodNutrition> {
 }
 
 export async function listFoods(): Promise<FoodNutrition[]> {
-   try{
+  try {
     const response = await axios.get<OpenFoodFactsResponse>(OPEN_FOOD_FACTS_URL, {
+      params: {
+        action: 'process',
+        json: 1,
+        page: 1,
+        page_size: 50,
+        fields: 'product_name,nutriments',
+        countries_tags: 'en:brazil',
+      },
       timeout: 8000,
+      headers: {
+        'User-Agent': 'FitAI/1.0 muridelvaux@gmail.com',
+      },
     });
 
-    const products = response.data.products;
+    const products = response.data.products ?? [];
 
-    if (!products || products.length === 0) {
+    if (products.length === 0) {
       console.warn(`[OpenFoodFacts] Empty products array, using mock fallback`);
       return Object.values(mockFoods);
     }
 
-    const validProduct = products.find(
+    const validProducts = products.filter(
       (product) =>
         product.product_name &&
         product.nutriments &&
         product.nutriments['energy-kcal_100g'] !== undefined
     );
 
-    if (!validProduct) {
-      // Log todos os produtos recebidos para debugar
+    if (validProducts.length === 0) {
       console.warn(
-        `[OpenFoodFacts] No valid product. Products received:`,
+        `[OpenFoodFacts] No valid products. Products received:`,
         products.map((p) => ({
           name: p.product_name,
           hasNutriments: !!p.nutriments,
           kcal: p.nutriments?.['energy-kcal_100g'],
         }))
       );
-      // Fallback em vez de throw — o app não quebra
       return Object.values(mockFoods);
     }
 
-    const { product_name, nutriments } = validProduct;
+    console.log(`[OpenFoodFacts] Found ${validProducts.length} valid products`);
 
-    console.log(`[OpenFoodFacts] Found valid product: "${product_name}"`, nutriments);
-
-    return products.map((product) => ({
+    return validProducts.map((product) => ({
       name: product.product_name,
       calories: Math.round(
         product.nutriments['energy-kcal_100g'] ?? 0
@@ -145,7 +156,6 @@ export async function listFoods(): Promise<FoodNutrition[]> {
       console.error(`[OpenFoodFacts] Unknown error:`, error);
     }
 
-    // Fallback silencioso em vez de quebrar o endpoint
-    return {...Object.values(mockFoods)}
+    return Object.values(mockFoods);
   }
 }

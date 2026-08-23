@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { foodNutritionSchema } from './foodSchema';
 
-export const mealTypeSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack']);
+export const mealTypeSchema = z.enum(['breakfast', 'lunch', 'dinner', 'snack', 'supper']);
 
 export const mealItemInputSchema = z.object({
   name: z.string().min(1, 'Item name is required'),

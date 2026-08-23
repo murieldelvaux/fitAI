@@ -128,6 +128,10 @@ export async function parseMeal(input: string): Promise<ParsedMealResponse> {
     rawInput: input,
     detectedMealType: normalized.includes('cafe') || normalized.includes('café') || normalized.includes('breakfast')
       ? 'breakfast'
+      : normalized.includes('almoco') || normalized.includes('almoço') || normalized.includes('lunch')
+      ? 'lunch'
+      : normalized.includes('ceia') || normalized.includes('supper')
+      ? 'supper'
       : normalized.includes('jantar') || normalized.includes('dinner')
       ? 'dinner'
       : normalized.includes('lanche') || normalized.includes('snack')

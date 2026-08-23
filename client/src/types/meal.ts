@@ -1,6 +1,6 @@
 import { FoodNutrition } from './food';
 
-export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack';
+export type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'supper';
 
 export interface MealFoodItem {
   name: string;
